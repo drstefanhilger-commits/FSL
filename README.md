@@ -17,8 +17,9 @@ I used **Claude Opus 5.5** and CAD to design it from a photo of the new Ukrainia
 | [`cad/step/`](cad/step) | STEP files of every part designed here, plus the full assembly without vendor parts. **Print the `Rev 2` body parts.** The assembly STEP and the renders still show the original one-piece body. |
 | [`BOM.md`](BOM.md) | Full bill of materials with purchase links, radio and goggle recommendations |
 | [`docs/WIRING.md`](docs/WIRING.md) | Every cable, connector, pad and route |
-| [`software/SETUP.md`](software/SETUP.md) | Flashing ArduPilot, calibration, radio, OSD, first flights |
-| [`software/ardupilot/`](software/ardupilot) | ArduPlane parameter file for the Kakute H7 (QuadPlane tail-sitter, airspeed sensor, high-speed gain scaling) |
+| [`software/SETUP.md`](software/SETUP.md) | Flashing PX4, calibration, radio, OSD, first flights |
+| [`software/px4/`](software/px4) | PX4 v1.17 parameter files for the Kakute H7 (quad tail-sitter without control surfaces, airspeed sensor, high-speed gain scaling), board variant with the HDZero OSD, and the [ArduPilot → PX4 migration notes](software/px4/MIGRATION.md) |
+| [`software/ardupilot/`](software/ardupilot) | Legacy: the original ArduPlane parameter file, kept for reference. No longer maintained. |
 | [`images/`](images) | CAD renders (exterior, x-ray, wiring) and CFD (airflow simulation) results |
 
 ## Key numbers
@@ -32,7 +33,7 @@ I used **Claude Opus 5.5** and CAD to design it from a photo of the new Ukrainia
 | Top speed target | 200 km/h (56 m/s), with an airspeed sensor and speed-based gain scaling |
 | Structure | 3D-printed in ASA or PA-CF |
 | Flight controller | Holybro Kakute H7 + Tekko32 F4 50A 4-in-1 |
-| Firmware | ArduPilot **ArduPlane** (`Q_TAILSIT_ENABLE = 2`, copter-motor tail-sitter) |
+| Firmware | **PX4** v1.17, VTOL tail-sitter without control surfaces (`VT_TYPE = 0`, `CA_AIRFRAME = 4`, differential thrust on all axes in forward flight) |
 | Video | HDZero Freestyle V2 + Micro V3 camera (digital, MSP OSD) |
 | RC | ExpressLRS 2.4 GHz |
 | GPS | Holybro Micro M10 in the nose |
@@ -93,16 +94,16 @@ The assembly STEP in `cad/step/` already leaves them out.
 ## Status
 
 - ✅ CAD complete, interference-checked, all wiring connected
-- ✅ ArduPilot parameters written (names checked against the ArduPilot docs, **not yet flight-tested**)
+- ✅ Migrated from ArduPilot to PX4: parameters written and checked against the PX4 v1.17 source, firmware variant builds (**not yet flight-tested**)
 - ⏳ First build and hover test
 - ✅ CFD at the 200 km/h target: drag 9.9 N
-- ⏳ Mass properties + measured all-up weight (sets `Q_TAILSIT_DSKLD`)
+- ⏳ Mass properties + measured all-up weight (hover thrust `MPC_THR_HOVER`, gain tuning)
 - ⏳ Pitot tube (airspeed sensor) mount not modelled yet
 - ⏳ Real build photos (current images are CAD renders)
 
 ## Licence
 
 - Hardware (CAD, drawings, images, docs): **CC BY-SA 4.0**
-- Software / configuration (parameter files): **GPL-3.0**, matching ArduPilot
+- Software / configuration (parameter files, board variant): **GPL-3.0**
 
 See [`LICENSE`](LICENSE).

@@ -1,0 +1,5 @@
+# PX4 SD-card add-on script: copy to /etc/extras.txt on the Kakute H7 microSD card.
+# ONLY needed if your Kakute H7 carries a BMI270 gyro. The PX4 holybro_kakuteh7 target probes
+# the MPU6000 (v1.3 and older) and the ICM-42688-P (v1.5, current) but not the BMI270, so such a
+# board would boot without an IMU. Use it only if QGC reports no accelerometer/gyro.
+bmi270 -R 6 -s start

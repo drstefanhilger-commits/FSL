@@ -1,0 +1,172 @@
+# Peregrine VTOL tail-sitter: PX4 starter parameters (QGroundControl parameter file)
+# Target firmware: PX4 v1.17.x, board holybro_kakuteh7 (Holybro Kakute H7 v1.x)
+#   Use the custom build holybro_kakuteh7_peregrine (see software/px4/README.md) to get the
+#   HDZero MSP DisplayPort OSD. Everything else also works on the stock holybro_kakuteh7 firmware.
+# Airframe: quad tail-sitter, 4 motors, NO control surfaces, 6S, 7" props (5-6" pitch)
+# Design goal: 200 km/h (about 56 m/s) in forward flight
+#
+# !!! STARTER VALUES, NOT FLIGHT-TESTED !!!
+# - Load with the PROPS OFF. Verify every motor's position and spin direction in
+#   QGC -> Vehicle Setup -> Actuators before fitting props.
+# - PX4 defines the body frame in the HOVER attitude (nose up, standing on the spikes).
+#   This is the opposite of ArduPilot. Sensor orientation, accelerometer calibration and
+#   level horizon are all done in the HOVER attitude. See software/SETUP.md.
+#
+# Load order:
+#   1. QGC -> Airframe -> "Generic VTOL Tailsitter" (SYS_AUTOSTART 13200) -> Apply and Restart.
+#   2. QGC -> Parameters -> Tools -> Load from file... -> this file.
+#   3. Reboot.
+#   4. Only after the airspeed sensor reads sensibly: load peregrine-kakuteh7-airspeed.params.
+#
+# Format: Vehicle-Id <TAB> Component-Id <TAB> Name <TAB> Value <TAB> Type (6 = INT32, 9 = REAL32)
+#
+# ---------- Vehicle type: quad tail-sitter without control surfaces ----------
+# 20 = VTOL quad-rotor tailsitter, VT_TYPE 0 = tailsitter, CA_AIRFRAME 4 = VTOL Tailsitter
+1	1	MAV_TYPE	20	6
+1	1	VT_TYPE	0	6
+1	1	CA_AIRFRAME	4	6
+1	1	CA_SV_CS_COUNT	0	6
+#
+# ---------- Motor geometry (hover body frame, metres) ----------
+# PX4 hover frame: +X = belly side of the aircraft in forward flight, +Y = right wing,
+# +Z = towards the tail. Motors sit 190 mm from the axis at 45/135/225/315 deg:
+# 0.190 * cos(45 deg) = 0.134 m. Numbering = PX4 (and ArduPilot) Quad X:
+#   Motor 1 = front-right CCW, Motor 2 = rear-left CCW, Motor 3 = front-left CW, Motor 4 = rear-right CW
+# KM > 0 = CCW, KM < 0 = CW, seen from above in hover (from the nose, looking aft).
+1	1	CA_ROTOR_COUNT	4	6
+1	1	CA_ROTOR0_PX	0.134	9
+1	1	CA_ROTOR0_PY	0.134	9
+1	1	CA_ROTOR0_KM	0.05	9
+1	1	CA_ROTOR1_PX	-0.134	9
+1	1	CA_ROTOR1_PY	-0.134	9
+1	1	CA_ROTOR1_KM	0.05	9
+1	1	CA_ROTOR2_PX	0.134	9
+1	1	CA_ROTOR2_PY	-0.134	9
+1	1	CA_ROTOR2_KM	-0.05	9
+1	1	CA_ROTOR3_PX	-0.134	9
+1	1	CA_ROTOR3_PY	0.134	9
+1	1	CA_ROTOR3_KM	-0.05	9
+#
+# ---------- Forward flight on motors only (differential thrust) ----------
+# Without control surfaces every forward-flight axis is flown by the motors.
+# Bitmask: 1 = yaw, 2 = roll, 4 = pitch -> 7 = all three.
+# Forward-flight roll uses the props' reaction torque only, so it is the weakest axis.
+1	1	VT_FW_DIFTHR_EN	7	6
+1	1	VT_FW_DIFTHR_S_R	1.0	9
+1	1	VT_FW_DIFTHR_S_P	1.0	9
+1	1	VT_FW_DIFTHR_S_Y	0.3	9
+# keep the props turning in forward flight: a motor below 2 % is stopped by the allocator,
+# which would remove control authority. Applies to the assisted FW modes.
+1	1	FW_THR_MIN	0.15	9
+#
+# ---------- Transitions ----------
+# PX4 tail-sitter: forward transition pitches down at 90 deg / VT_F_TRANS_DUR and completes
+# below -60 deg pitch AND (if an airspeed sensor is in use) above VT_ARSP_TRANS.
+# The 60 deg threshold is fixed in PX4 (ArduPilot's Q_TAILSIT_ANGLE has no equivalent).
+1	1	VT_F_TRANS_DUR	2.5	9
+1	1	VT_B_TRANS_DUR	2.0	9
+1	1	VT_TRANS_MIN_TM	1.5	9
+1	1	VT_TRANS_TIMEOUT	10.0	9
+1	1	VT_ARSP_BLEND	12.0	9
+1	1	VT_ARSP_TRANS	18.0	9
+# (EKF2_FUSE_BETA does not exist in the Kakute H7 build: side-slip fusion is compiled out,
+#  which is what a tail-sitter needs anyway)
+#
+# ---------- Airspeeds and high-speed gain scaling ----------
+# PX4 scales the forward-flight rate controller output by (FW_AIRSPD_TRIM / airspeed)^2.
+# At 56 m/s this gives (30/56)^2 = 0.29, close to ArduPilot's Q_TAILSIT_GSCMIN 0.3.
+# There is no disk-loading model (Q_TAILSIT_DSKLD): if it oscillates at speed, lower
+# VT_FW_DIFTHR_S_* or the FW rate gains, or raise FW_AIRSPD_TRIM.
+1	1	FW_AIRSPD_STALL	15.0	9
+1	1	FW_AIRSPD_MIN	18.0	9
+1	1	FW_AIRSPD_TRIM	30.0	9
+1	1	FW_AIRSPD_MAX	56.0	9
+1	1	FW_ARSP_SCALE_EN	1	6
+#
+# ---------- Airspeed sensor (Matek ASPD-4525, MS4525DO on the external I2C bus) ----------
+# Stage 1 (this file): driver on, but the reading is NOT used for control and not required
+# for arming. Stage 2 (peregrine-kakuteh7-airspeed.params) switches it on once verified.
+1	1	SENS_EN_MS4525DO	1	6
+1	1	ASPD_PRIMARY	1	6
+1	1	SYS_HAS_NUM_ASPD	0	6
+1	1	FW_USE_AIRSPD	0	6
+#
+# ---------- Motors: Tekko32 F4 4-in-1, DShot600 ----------
+# M1/M2 = timer group 0, M3/M4 = timer group 1 on the Kakute H7. -3 = DShot600.
+# ESC telemetry is started by the board on UART7 automatically (no parameter needed).
+1	1	PWM_MAIN_FUNC1	101	6
+1	1	PWM_MAIN_FUNC2	102	6
+1	1	PWM_MAIN_FUNC3	103	6
+1	1	PWM_MAIN_FUNC4	104	6
+1	1	PWM_MAIN_TIM0	-3	6
+1	1	PWM_MAIN_TIM1	-3	6
+# armed idle (ArduPilot Q_M_SPIN_ARM 0.08)
+1	1	DSHOT_MIN	0.08	9
+# minimum collective thrust in assisted hover modes (ArduPilot Q_M_SPIN_MIN 0.12)
+1	1	MPC_THR_MIN	0.12	9
+# high-pitch props hover at a higher throttle than 7x4s (ArduPilot Q_M_THST_HOVER 0.35)
+1	1	MPC_THR_HOVER	0.35	9
+# Hobbywing XRotor 2807: 12N14P
+1	1	MOT_POLE_COUNT	14	6
+#
+# ---------- Serial ports (PX4 holybro_kakuteh7 mapping) ----------
+# UART4 (R4/T4) = GPS1 -> Holybro Micro M10. NOTE: UART3 is the PX4 system console,
+# so the GPS moves from the T3/R3 pads (ArduPilot) to T4/R4. See docs/WIRING.md.
+1	1	GPS_1_CONFIG	201	6
+# the board has no internal compass; the Micro M10 brings an external one on I2C
+1	1	SYS_HAS_MAG	1	6
+# UART6 (R6/T6) = RC port -> ExpressLRS receiver, CRSF with telemetry
+1	1	RC_INPUT_PROTO	6	6
+# UART1 (T1/R1, HD/VTX connector) = TELEM1 -> HDZero VTX, MSP DisplayPort OSD (115200 fixed).
+# MAVLink is moved off TELEM1; QGroundControl connects over USB.
+# MSP_OSD_CONFIG only exists in the holybro_kakuteh7_peregrine build (see software/px4/README.md).
+1	1	MAV_0_CONFIG	0	6
+1	1	MSP_OSD_CONFIG	101	6
+#
+# ---------- Battery (Kakute H7 analog voltage + Tekko32 current sense) ----------
+# BAT1_V_DIV / BAT1_A_PER_V come from the board defaults (11.2 / 59.5); calibrate them.
+1	1	BAT1_SOURCE	0	6
+1	1	BAT1_N_CELLS	6	6
+1	1	BAT1_CAPACITY	2200.0	9
+# ArduPilot BATT_LOW_VOLT 21.0 = 3.5 V/cell, BATT_CRT_VOLT 19.8 = 3.3 V/cell.
+# PX4 works in state of charge instead of fixed voltages.
+1	1	BAT1_V_EMPTY	3.5	9
+1	1	BAT1_V_CHARGED	4.2	9
+1	1	BAT_LOW_THR	0.20	9
+1	1	BAT_CRIT_THR	0.10	9
+1	1	BAT_EMERGEN_THR	0.05	9
+# 3 = Return at critical, Land at emergency
+1	1	COM_LOW_BAT_ACT	3	6
+#
+# ---------- Failsafes ----------
+# RC loss -> Return (ArduPilot THR_FAILSAFE 1 + FS_LONG_ACTN 1 = RTL)
+1	1	NAV_RCL_ACT	2	6
+# no GCS telemetry link on this airframe (USB only), so no data-link-loss action
+1	1	NAV_DLL_ACT	0	6
+#
+# ---------- RC channels and flight modes (ExpressLRS defaults) ----------
+# CH5 (ELRS AUX1) = arm switch, CH6 = 6-position mode switch, CH7 = VTOL transition switch.
+# Change these to match your EdgeTX model, then run the radio calibration in QGC.
+1	1	RC_MAP_ARM_SW	5	6
+1	1	RC_MAP_FLTMODE	6	6
+1	1	RC_MAP_TRANS_SW	7	6
+# 8 = Stabilized, 1 = Altitude, 2 = Position, 4 = Hold, 5 = Return, 11 = Land
+# Hover: Stabilized ~ QSTABILIZE, Altitude ~ QHOVER, Position ~ QLOITER, Return ~ QRTL.
+# Forward flight (transition switch to FW): Stabilized ~ FBWA, Altitude/Position ~ FBWB/CRUISE.
+1	1	COM_FLTMODE1	8	6
+1	1	COM_FLTMODE2	1	6
+1	1	COM_FLTMODE3	2	6
+1	1	COM_FLTMODE4	4	6
+1	1	COM_FLTMODE5	5	6
+1	1	COM_FLTMODE6	11	6
+#
+# ---------- Autotune ----------
+# allows the multicopter autotune (QGC -> Vehicle Setup -> PID Tuning -> Autotune) in hover
+1	1	MC_AT_EN	1	6
+#
+# ---------- Sensor orientation (HOVER frame) ----------
+# 24 = "Pitch 90 deg": FC flat on the tray, arrow towards the NOSE, components towards the
+# top of the aircraft (= ArduPilot AHRS_ORIENTATION 0). Other mountings, see SETUP.md:
+#   arrow to the right wing 18, arrow to the tail 34, arrow to the left wing 36,
+#   arrow to the nose but board upside down 29.
+1	1	SENS_BOARD_ROT	24	6

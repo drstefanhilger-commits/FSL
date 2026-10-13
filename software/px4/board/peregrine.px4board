@@ -1,0 +1,8 @@
+# Peregrine variant of the holybro_kakuteh7 PX4 build.
+# Copy to boards/holybro/kakuteh7/peregrine.px4board in a PX4-Autopilot v1.17 checkout and run
+#   make holybro_kakuteh7_peregrine
+# Only the lines below differ from holybro_kakuteh7_default.
+#
+# MSP DisplayPort OSD for the HDZero Freestyle V2 VTX (MSP_OSD_CONFIG). The stock Kakute H7
+# build leaves this driver out.
+CONFIG_DRIVERS_OSD_MSP_OSD=y

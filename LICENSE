@@ -10,7 +10,8 @@ This repository is dual-licensed by content type:
    Full text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
 
 2. Software and configuration files
-   (everything under software/ardupilot/)
+   (the parameter files, board configuration and scripts under software/px4/
+   and software/ardupilot/; the *.md files there fall under 1.)
    are licensed under the GNU General Public License v3.0 (GPL-3.0).
    Full text: https://www.gnu.org/licenses/gpl-3.0.txt
 
