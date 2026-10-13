@@ -1,5 +1,9 @@
 # Peregrine: open-source VTOL FPV tail-sitter
 
+> **Fork notice.** This repository is a fork of [Bennyco86/peregrine-vtol](https://github.com/Bennyco86/peregrine-vtol) (© 2026 Quality3Ds), imported unchanged in the first commit. The design, CAD, renders, CFD and the original documentation are the original author's work; "I" in the text below refers to them.
+> **Changes in this fork:** the flight controller configuration was migrated from ArduPilot to **PX4 v1.17** (see [`software/px4/`](software/px4) and the [migration notes](software/px4/MIGRATION.md)), and the docs were updated to match. The airframe itself is unchanged.
+> Licences stay as in the original: CC BY-SA 4.0 for hardware and docs, GPL-3.0 for the configuration files (see [`LICENSE`](LICENSE)). Modified files are marked by the commit history.
+
 ![Peregrine, exterior](images/01-exterior-trimetric.png)
 
 **Peregrine** (named after the peregrine falcon, the fastest animal on Earth) is a hobby **VTOL tail-sitter**. It stands on its four wing-tip spikes, takes off and hovers like a quadcopter, then pitches nose-forward and flies on its wings. It uses four motors and no control surfaces. **Design target: 200 km/h (56 m/s) in forward flight.**
