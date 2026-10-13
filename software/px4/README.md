@@ -9,6 +9,7 @@ Target: **PX4 v1.17**, Holybro **Kakute H7** (v1.x, `holybro_kakuteh7`) + Tekko3
 | [`board/peregrine.px4board`](board/peregrine.px4board) | PX4 board variant = stock `holybro_kakuteh7` + the `msp_osd` driver for the HDZero OSD. |
 | [`sdcard/etc/extras.txt`](sdcard/etc/extras.txt) | Only for a Kakute H7 with a BMI270 gyro (not the current v1.5). |
 | [`firmware/`](firmware) | Prebuilt `holybro_kakuteh7_peregrine.px4` (PX4 v1.17.0 + OSD). |
+| [`sitl/`](sitl) | PX4 SITL with the Gazebo quad tail-sitter and an automated VTOL test flight. |
 | [`tools/`](tools) | WSL setup script and parameter checks against a PX4 build. |
 | [`MIGRATION.md`](MIGRATION.md) | ArduPilot → PX4 parameter mapping, hardware changes and behaviour differences. |
 
@@ -39,4 +40,4 @@ The PX4 bootloader must already be on the board (see SETUP.md §1).
 
 - Every parameter name, type (INT32/REAL32), range, enum value and bitmask in both `.params` files was checked against the PX4 v1.17.0 source.
 - The board variant was compiled with `make holybro_kakuteh7_peregrine` on PX4 v1.17.0.
-- Not done: flight tests, SITL of this exact airframe. Treat all tuning values as starting points.
+- Not done: flight tests. SITL exists only with PX4's generic quad tail-sitter (`sitl/`), not with a Peregrine model. Treat all tuning values as starting points.
