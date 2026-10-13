@@ -26,6 +26,24 @@ HW_PREFIXES = ('PWM_', 'DSHOT_', 'MOT_', 'CA_', 'MAV_', 'MSP_', 'OSD_', 'GPS_', 
                'FW_USE_AIRSPD', 'IMU_', 'EKF2_', 'VT_TYPE')
 AIRSPEED_PARAMS = ('FW_AIRSPD_STALL', 'FW_AIRSPD_MIN', 'FW_AIRSPD_TRIM', 'FW_AIRSPD_MAX')
 
+def quat_mul(a, b):
+    w1, x1, y1, z1 = a; w2, x2, y2, z2 = b
+    return (w1*w2 - x1*x2 - y1*y2 - z1*z2, w1*x2 + x1*w2 + y1*z2 - z1*y2,
+            w1*y2 - x1*z2 + y1*w2 + z1*x2, w1*z2 + x1*y2 - y1*x2 + z1*w2)
+
+
+def quat_euler_deg(q):
+    w, x, y, z = q
+    roll = math.atan2(2 * (w*x + y*z), 1 - 2 * (x*x + y*y))
+    pitch = math.asin(max(-1.0, min(1.0, 2 * (w*y - z*x))))
+    return math.degrees(roll), math.degrees(pitch)
+
+
+# PX4 reports a tail-sitter's attitude in the HOVER body frame. The fixed-wing body
+# frame is that frame rotated by +90 deg about Y (FW nose = hover -Z, FW belly = hover +X).
+Q_HOVER_TO_FW = (math.cos(math.pi / 4), 0.0, math.sin(math.pi / 4), 0.0)
+TAILSITTER_TYPES = (19, 20, 23)
+
 VTOL_STATE = {0: 'UNDEFINED', 1: 'TRANSITION_TO_FW', 2: 'TRANSITION_TO_MC', 3: 'MC', 4: 'FW'}
 LANDED = {0: 'UNDEFINED', 1: 'ON_GROUND', 2: 'IN_AIR', 3: 'TAKEOFF', 4: 'LANDING'}
 
@@ -41,23 +59,36 @@ class Flight:
         self.alt = float('nan')
         self.airspeed = float('nan')
         self.roll = self.pitch = float('nan')
+        self.tailsitter = False
         self.log = []          # (t, phase, alt, airspeed, roll_deg, pitch_deg, vtol_state)
         self.phase = 'init'
         self.t0 = time.time()
+        self.sim_t = 0.0       # PX4 boot time [s] = simulation time (SITL runs in lockstep)
+        self.sim_t0 = None
         self.msgs = []
 
     # ---------- message pump ----------
     def handle(self, msg):
         t = msg.get_type()
+        if hasattr(msg, 'time_boot_ms') and msg.get_srcSystem() == self.m.target_system:
+            self.sim_t = msg.time_boot_ms / 1000.0
+            if self.sim_t0 is None:
+                self.sim_t0 = self.sim_t
         if t == 'EXTENDED_SYS_STATE':
             self.vtol_state, self.landed = msg.vtol_state, msg.landed_state
         elif t == 'GLOBAL_POSITION_INT':
             self.alt = msg.relative_alt / 1000.0
         elif t == 'VFR_HUD':
             self.airspeed = msg.airspeed
-        elif t == 'ATTITUDE':
-            self.roll, self.pitch = math.degrees(msg.roll), math.degrees(msg.pitch)
-            self.log.append((time.time() - self.t0, self.phase, self.alt, self.airspeed,
+        elif t == 'HEARTBEAT' and msg.get_srcSystem() == self.m.target_system:
+            self.tailsitter = msg.type in TAILSITTER_TYPES
+        elif t == 'ATTITUDE_QUATERNION':
+            q = (msg.q1, msg.q2, msg.q3, msg.q4)
+            # report FW-frame angles for a tail-sitter in forward flight / transition
+            if self.tailsitter and self.vtol_state in (1, 2, 4):
+                q = quat_mul(q, Q_HOVER_TO_FW)
+            self.roll, self.pitch = quat_euler_deg(q)
+            self.log.append((self.sim_t, self.phase, self.alt, self.airspeed,
                              self.roll, self.pitch, self.vtol_state))
         elif t == 'STATUSTEXT':
             self.msgs.append(msg.text)
@@ -84,14 +115,29 @@ class Flight:
             self.handle(msg)
         return None
 
+    # Timeouts and durations are in SIMULATION seconds: Gazebo under WSL often runs
+    # slower than real time, and PX4 SITL follows it in lockstep. A wall-clock cap
+    # (WALL_FACTOR x) still ends the test if the simulation stalls completely.
+    WALL_FACTOR = 20
+
     def wait(self, cond, timeout, what):
-        end = time.time() + timeout
-        while time.time() < end:
+        start, wall_end = self.sim_t, time.time() + timeout * self.WALL_FACTOR + 30
+        while self.sim_t - start < timeout and time.time() < wall_end:
             self.pump(0.1)
             if cond():
                 return True
-        print(f'TIMEOUT waiting for {what}')
+        print(f'TIMEOUT waiting for {what} ({self.sim_t - start:.1f} s sim time, '
+              f'alt {self.alt:.1f} m, vtol_state {VTOL_STATE.get(self.vtol_state)})')
         return False
+
+    def sleep_sim(self, seconds):
+        start, wall_end = self.sim_t, time.time() + seconds * self.WALL_FACTOR + 30
+        while self.sim_t - start < seconds and time.time() < wall_end:
+            self.pump(0.1)
+
+    def rtf(self):
+        wall = time.time() - self.t0
+        return (self.sim_t - self.sim_t0) / wall if self.sim_t0 is not None and wall > 0 else float('nan')
 
     # ---------- commands ----------
     def cmd(self, command, *p, timeout=5):
@@ -117,7 +163,7 @@ class Flight:
         return False
 
     def stream_rates(self):
-        for msg_id, hz in ((mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE, 20),
+        for msg_id, hz in ((mavutil.mavlink.MAVLINK_MSG_ID_ATTITUDE_QUATERNION, 20),
                            (mavutil.mavlink.MAVLINK_MSG_ID_EXTENDED_SYS_STATE, 5),
                            (mavutil.mavlink.MAVLINK_MSG_ID_VFR_HUD, 5),
                            (mavutil.mavlink.MAVLINK_MSG_ID_GLOBAL_POSITION_INT, 10)):
@@ -153,6 +199,7 @@ def phase_stats(log, phase):
         'alt_max_m': round(max(alts), 1) if alts else None,
         'airspeed_mean_ms': round(statistics.mean(asp), 1) if asp else None,
         'airspeed_max_ms': round(max(asp), 1) if asp else None,
+        'roll_abs_mean_deg': round(statistics.mean(abs(r) for r in roll), 1) if roll else None,
         'roll_std_deg': round(statistics.pstdev(roll), 1) if len(roll) > 1 else None,
         'pitch_std_deg': round(statistics.pstdev(pitch), 1) if len(pitch) > 1 else None,
     }
@@ -194,46 +241,45 @@ def main():
     fl.cmd(C.MAV_CMD_NAV_TAKEOFF, 0, 0, 0, nan, nan, nan, nan)
     results['takeoff'] = fl.wait(lambda: fl.alt > a.alt - 2, 60, f'altitude {a.alt} m')
     fl.phase = 'hover'
-    fl.pump(5)
+    fl.sleep_sim(5)
     if not results['takeoff']:
         return finish(fl, results)
 
     # ---- front transition ----
     fl.phase = 'transition_fw'
-    t = time.time()
+    t = fl.sim_t
     fl.cmd(C.MAV_CMD_DO_VTOL_TRANSITION, C.MAV_VTOL_STATE_FW)
     results['transition_fw'] = fl.wait(lambda: fl.vtol_state == C.MAV_VTOL_STATE_FW, 30, 'FW state')
-    results['transition_fw_time_s'] = round(time.time() - t, 1)
+    results['transition_fw_time_s'] = round(fl.sim_t - t, 1)
     if not results['transition_fw']:
         return finish(fl, results)
 
     # ---- forward flight (Hold = loiter around the current point) ----
     fl.phase = 'fw'
     fl.cmd(C.MAV_CMD_DO_SET_MODE, C.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED, 4, 3)  # AUTO.LOITER
-    end = time.time() + a.fw_time
-    while time.time() < end:
-        fl.pump(0.5)
+    fl.sleep_sim(a.fw_time)
     results['fw_still_fw'] = fl.vtol_state == C.MAV_VTOL_STATE_FW
 
     # ---- back transition ----
     fl.phase = 'transition_mc'
-    t = time.time()
+    t = fl.sim_t
     fl.cmd(C.MAV_CMD_DO_VTOL_TRANSITION, C.MAV_VTOL_STATE_MC)
     results['transition_mc'] = fl.wait(lambda: fl.vtol_state == C.MAV_VTOL_STATE_MC, 30, 'MC state')
-    results['transition_mc_time_s'] = round(time.time() - t, 1)
+    results['transition_mc_time_s'] = round(fl.sim_t - t, 1)
     fl.phase = 'hover2'
-    fl.pump(5)
+    fl.sleep_sim(5)
 
     # ---- land ----
     fl.phase = 'land'
     fl.cmd(C.MAV_CMD_NAV_LAND, 0, 0, 0, float('nan'), float('nan'), float('nan'), 0)
     results['landed'] = fl.wait(lambda: fl.landed == C.MAV_LANDED_STATE_ON_GROUND, 120, 'landing')
-    fl.pump(3)
+    fl.sleep_sim(3)
     return finish(fl, results)
 
 
 def finish(fl, results):
-    print('\n===== RESULT =====')
+    print('\n===== RESULT =====  (times in simulation seconds)')
+    print(f'{"real_time_factor":24s} {fl.rtf():.2f}')
     for k, v in results.items():
         print(f'{k:24s} {v}')
     for ph in ('hover', 'transition_fw', 'fw', 'transition_mc', 'land'):

@@ -8,7 +8,7 @@ Simulates PX4 v1.17 with the **Gazebo quad tail-sitter** (`gz_quadtailsitter`, a
 |---|---|
 | `setup_gz.sh` | Once: installs Gazebo Harmonic (via PX4's `ubuntu.sh`, asks for sudo) and builds `px4_sitl` with the Gazebo bridge. |
 | `run_sitl.sh` | Starts the simulation. Default `gz_quadtailsitter`; `--headless` without Gazebo GUI. Also `sihsim_*` models (no Gazebo). |
-| `flight_test.py` | Automated flight: arm → takeoff 30 m → transition to FW → loiter → back-transition → land. Prints per-phase altitude, airspeed and attitude spread, `PASS`/`FAIL`. |
+| `flight_test.py` | Automated flight: arm → takeoff 30 m → transition to FW → loiter → back-transition → land. Prints per-phase altitude, airspeed and attitude (tail-sitter attitude converted to the fixed-wing frame in forward flight), `PASS`/`FAIL`. All timeouts and durations are in **simulation time**, so a slow Gazebo under WSL (real-time factor < 1, printed in the result) does not cause false timeouts. |
 | `run_test.sh` | `baseline` (model's parameters) or `peregrine` (+ flight-logic subset of `../peregrine-kakuteh7.params`). |
 
 ## Use (WSL2 Ubuntu 24.04, after `../tools/setup_wsl.sh`)
@@ -46,5 +46,6 @@ and run `wsl --shutdown` once. Without it, type `param set MAV_0_BROADCAST 1` in
 ## Checks done
 
 - `flight_test.py` was run end to end against PX4 v1.17.0 SITL with `sihsim_standard_vtol` (Gazebo is not installable in the cloud environment it was written in): arm, takeoff, transition to FW (3.1 s), 30 s loiter, back-transition, landing → `PASS`. Parameter import and read-back (INT32 and REAL32) verified.
-- **Not yet run against `gz_quadtailsitter`** – that is the first thing to do with these scripts.
+- Run against `gz_quadtailsitter` on WSL2 (baseline, before the sim-time fix): `PASS`, forward transition 2.7 s, FW airspeed 17.8 m/s (trim 18), back-transition 4.6 s with +16 m altitude gain.
+- Sim-time handling verified with SIH slowed to 0.3x real time (`PX4_SIM_SPEED_FACTOR=0.3`): `PASS`.
 - `sihsim_xvert` (PX4's SIH duo tail-sitter) tips over on the ground at takeoff in v1.17.0 with its stock parameters; use the Gazebo model instead.
