@@ -12,9 +12,21 @@ root = sys.argv[1]
 db = {}
 
 def add(name, **kw):
+    # A parameter can be defined in several places (e.g. PWM_MAIN_TIMx in pwm_out
+    # with DShot and in px4io without). Which one a board compiles depends on the
+    # board, so merge leniently: union of enum values/bits, widest min/max.
+    # The strict per-board check is fw_paramdb.py (build metadata).
     d = db.setdefault(name, {})
     for k, v in kw.items():
-        if v is not None:
+        if v is None:
+            continue
+        if k in ('values', 'bits') and isinstance(d.get(k), dict):
+            d[k] = {**d[k], **v}
+        elif k == 'min' and d.get('min') is not None:
+            d['min'] = min(float(d['min']), float(v))
+        elif k == 'max' and d.get('max') is not None:
+            d['max'] = max(float(d['max']), float(v))
+        else:
             d[k] = v
 
 pd = re.compile(r'/\*\*((?:(?!\*/).)*?)\*/\s*PARAM_DEFINE_(INT32|FLOAT)\(\s*(\w+)\s*,\s*([^)]*)\)', re.S)

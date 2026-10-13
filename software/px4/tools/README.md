@@ -15,4 +15,4 @@ cd ~/projects/FSL/px4/PX4-Autopilot && make holybro_kakuteh7_peregrine
 ~/projects/FSL/fsl/software/px4/tools/validate.sh
 ```
 
-Output lists only problems; `ERRORS: 0` twice means both files are clean.
+Output lists only problems; `ERRORS: 0` twice means both files are clean. If the two checks disagree, **check 1 (firmware metadata) is authoritative**: the source scan merges parameters that are defined differently for different boards (e.g. `PWM_MAIN_TIMx` in `pwm_out` with DShot and in `px4io` without) and is therefore deliberately lenient.
